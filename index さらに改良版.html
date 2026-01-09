@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Infinite Stairs Space</title>
+
+<style>
+body {
+  margin: 0;
+  overflow: hidden;
+  background: black;
+  color: white;
+  font-family: monospace;
+}
+
+#stars, #constellation {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+}
+
+#stars {
+  background:
+    radial-gradient(circle at 20% 30%, #fff 1px, transparent 1px),
+    radial-gradient(circle at 70% 80%, #aaa 1px, transparent 1px),
+    radial-gradient(circle at 40% 60%, #ccc 1px, transparent 1px);
+  background-size: 200px 200px;
+  animation: scroll 20s linear infinite;
+}
+
+#constellation {
+  z-index: -1;
+  background-image:
+    linear-gradient(30deg, rgba(255,255,255,0.15) 1px, transparent 1px),
+    linear-gradient(-30deg, rgba(255,255,255,0.15) 1px, transparent 1px);
+  background-size: 300px 300px;
+  animation: scroll 30s linear infinite;
+}
+
+@keyframes scroll {
+  from { background-position-y: 0; }
+  to   { background-position-y: 600px; }
+}
+
+#menu {
+  text-align: center;
+  margin-top: 40px;
+}
+
+button {
+  font-size: 18px;
+  padding: 6px 18px;
+  margin: 8px;
+}
+
+#gameArea { display: none; }
+
+#close {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+#stairs {
+  position: relative;
+  width: 320px;
+  height: 520px;
+  margin: 40px auto;
+}
+
+#player {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 32px;
+  height: 40px;
+  background: #666;
+  border-radius: 4px;
+}
+
+.step { position: absolute; }
+
+.stair {
+  width: 90px;
+  height: 8px;
+  background: white;
+  border-radius: 4px;
+}
+
+.base-stair {
+  position: absolute;
+  width: 100px;
+  height: 10px;
+  background: #888;
+  border-radius: 5px;
+}
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  backdrop-filter: blur(3px);
+}
+</style>
+</head>
+
+<body>
+
+<div id="stars"></div>
+<div id="constellation"></div>
+
+<div id="menu">
+  <h2>Infinite Stairs Space</h2>
+  <button onclick="start()">START</button>
+</div>
+
+<div id="gameArea">
+  <div id="close" onclick="back()">×</div>
+  <p style="text-align:center">
+    COMBO: <span id="combo">0</span> /
+    MAX: <span id="maxCombo">0</span>
+  </p>
+  <div id="stairs"></div>
+</div>
+
+<div id="overlay">MISS</div>
+
+<script>
+/* ===== 定数 ===== */
+const STEP_COUNT = 8;
+const STEP_GAP = 60;
+const OFFSET_X = 120;
+const DISPLAY_Y_OFFSET = -32;
+const STAIR_SHIFT_X = -30; // ★ 左に30px移動
+
+/* ===== 状態 ===== */
+let stairs = [];
+let combo = 0;
+let maxCombo = 0;
+let lastTime = 0;
+let disabled = false;
+
+/* ===== 要素 ===== */
+const stairsEl = document.getElementById("stairs");
+const comboEl = document.getElementById("combo");
+const maxComboEl = document.getElementById("maxCombo");
+const overlay = document.getElementById("overlay");
+
+/* ===== 次の階段 ===== */
+function nextStair(prev) {
+  return Math.random() < 0.7
+    ? (prev === "L" ? "R" : "L")
+    : prev;
+}
+
+/* ===== 開始 ===== */
+function start() {
+  document.getElementById("menu").style.display = "none";
+  document.getElementById("gameArea").style.display = "block";
+
+  stairs = [Math.random() < 0.5 ? "L" : "R"];
+  for (let i = 1; i < STEP_COUNT; i++) {
+    stairs.push(nextStair(stairs[i - 1]));
+  }
+
+  combo = 0;
+  maxCombo = 0;
+  lastTime = 0;
+  comboEl.textContent = 0;
+  maxComboEl.textContent = 0;
+
+  draw();
+}
+
+function back() {
+  document.getElementById("gameArea").style.display = "none";
+  document.getElementById("menu").style.display = "block";
+}
+
+/* ===== 描画 ===== */
+function draw() {
+  stairsEl.innerHTML = "";
+
+  const player = document.createElement("div");
+  player.id = "player";
+  stairsEl.appendChild(player);
+
+  const base = document.createElement("div");
+  base.className = "base-stair";
+  stairsEl.appendChild(base);
+
+  const playerRect = player.getBoundingClientRect();
+  const stairsRect = stairsEl.getBoundingClientRect();
+
+  const baseX =
+    playerRect.left + playerRect.width / 2
+    - stairsRect.left
+    - base.offsetWidth / 2;
+
+  const baseY =
+    playerRect.top
+    - stairsRect.top
+    + playerRect.height
+    + 4;
+
+  base.style.transform = `translate(${baseX}px, ${baseY}px)`;
+
+  const firstStepY = baseY - STEP_GAP;
+
+  let currentX = 0;
+
+  stairs.forEach((s, i) => {
+    const step = document.createElement("div");
+    step.className = "step";
+
+    if (i === 0) {
+      currentX = (s === "L") ? -OFFSET_X : OFFSET_X;
+    } else {
+      currentX += (s === "L") ? -OFFSET_X : OFFSET_X;
+    }
+
+    const x = 160 + currentX + STAIR_SHIFT_X; // ★ ここだけ変更
+    const y = firstStepY - i * STEP_GAP + DISPLAY_Y_OFFSET;
+
+    step.style.transform = `translate(${x}px, ${y}px)`;
+
+    const bar = document.createElement("div");
+    bar.className = "stair";
+    step.appendChild(bar);
+
+    stairsEl.appendChild(step);
+  });
+}
+
+/* ===== 成功 / 失敗 ===== */
+function success() {
+  const now = Date.now();
+  const limit = Math.max(300, 1200 - combo * 30);
+
+  combo = now - lastTime <= limit ? combo + 1 : 1;
+  lastTime = now;
+  maxCombo = Math.max(maxCombo, combo);
+
+  comboEl.textContent = combo;
+  maxComboEl.textContent = maxCombo;
+
+  stairs.shift();
+  stairs.push(nextStair(stairs[stairs.length - 1]));
+  draw();
+}
+
+function miss() {
+  disabled = true;
+  combo = 0;
+  comboEl.textContent = 0;
+  overlay.style.display = "flex";
+
+  setTimeout(() => {
+    overlay.style.display = "none";
+    disabled = false;
+  }, 500);
+}
+
+/* ===== 操作 ===== */
+document.addEventListener("keydown", e => {
+  if (disabled) return;
+
+  const cur = stairs[0];
+
+  if (e.key === "a" || e.key === "A")
+    cur === "L" ? success() : miss();
+
+  if (e.key === "d" || e.key === "D")
+    cur === "R" ? success() : miss();
+});
+</script>
+
+</body>
+</html>
